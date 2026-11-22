@@ -1,15 +1,17 @@
-"""CLI первого этапа: разбор программы и вывод полей команд."""
+"""CLI ассемблера варианта 22: поля команд и машинный код."""
 
 import argparse
 import sys
 from pathlib import Path
 
+from machine import encode_program, format_bytes
 from parser import format_fields, parse_program
 from spec import AssemblyError
 
 EXIT_OK = 0
 EXIT_ERROR = 1
 STAGE_PARSE = 1
+STAGE_BINARY = 2
 
 
 def parse_args(argv):
@@ -19,7 +21,8 @@ def parse_args(argv):
     parser.add_argument("-o", "--output", required=True, help="выходной .bin")
     parser.add_argument("--test", action="store_true", help="тестовый вывод")
     parser.add_argument(
-        "--stage", type=int, choices=(STAGE_PARSE,), default=STAGE_PARSE
+        "--stage", type=int, choices=(STAGE_PARSE, STAGE_BINARY),
+        default=STAGE_BINARY,
     )
     return parser.parse_args(argv)
 
@@ -37,14 +40,23 @@ def validate_paths(source, output):
 
 
 def run(args):
-    """Разбирает исходник; на первом этапе бинарный файл не создаётся."""
+    """Разбирает программу и выполняет выбранный этап ассемблирования."""
     source, output = Path(args.input), Path(args.output)
     validate_paths(source, output)
     program = parse_program(source.read_text(encoding="utf-8-sig"))
-    print(f"Команд разобрано: {len(program)}")
+    if args.stage == STAGE_PARSE:
+        print(f"Команд разобрано: {len(program)}")
+        if args.test:
+            for instruction in program:
+                print(format_fields(instruction))
+        return
+    blocks = encode_program(program)
+    code = b"".join(blocks)
+    output.write_bytes(code)
+    print(f"Размер двоичного файла: {len(code)} байт")
     if args.test:
-        for instruction in program:
-            print(format_fields(instruction))
+        for block in blocks:
+            print(format_bytes(block))
 
 
 def main(argv=None):
